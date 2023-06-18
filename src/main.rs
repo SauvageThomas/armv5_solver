@@ -26,7 +26,7 @@ fn main() {
 
     let nb_island = 1;
     let nb_run = 100u32;
-    let lambda = 1000;
+    let lambda = 10;
     let mutation = 0.1f32;
 
     for i in 0..nb_island {
@@ -45,7 +45,7 @@ fn main() {
 fn custom_1v1() {
     let mut toto = Character::new(
         "Indigo Pyrithe".to_string(), 1,
-        &[&GiantBlood, &GreatCharacteristics(STA), &PuissantAbility, &AffinityAbility],
+        vec![&GiantBlood, &GreatCharacteristics(STA), &PuissantAbility, &AffinityAbility],
         Statistics { str: 2, sta: 2, dex: 3, qik: 4, int: 0, per: 0, pre: 0, com: 0 },
         5,
         &GREAT_SWORD, &PLATE_FULL_MAIL_CAMAIL_LVL_1,
@@ -61,7 +61,7 @@ fn custom_1v1() {
 
     let mut target = Character::new(
         "Foe".to_string(), 1,
-        &[&Tough, &GiantBlood, &GreatCharacteristics(STA), &PuissantAbility, &AffinityAbility],
+        vec![&GiantBlood, &GreatCharacteristics(STA), &PuissantAbility, &AffinityAbility],
         Statistics { str: 2, sta: 2, dex: 3, qik: 4, int: 0, per: 0, pre: 0, com: 0 },
         6,
         &GREAT_SWORD, &PLATE_FULL_MAIL_CAMAIL_LVL_1,
@@ -69,7 +69,7 @@ fn custom_1v1() {
 
     let mut manon = Character::new(
         "Sparkle Minouchatte".to_string(), 2,
-        &[&Tough, &GiantBlood, &GreatCharacteristics(STA), &EnduringConstitution],
+        vec![&GiantBlood, &GreatCharacteristics(STA), &PuissantAbility, &AffinityAbility],
         Statistics { str: 5, sta: 5, dex: 5, qik: 5, int: 5, per: 5, pre: 5, com: 5 },
         7,
         &GREAT_SWORD, &PLATE_FULL_MAIL_CAMAIL_LVL_1,
