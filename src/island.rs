@@ -6,17 +6,16 @@ use crate::combat::Combat;
 
 pub struct Island {
     pub name: String,
-    pub mutation: f32,
+    pub mutation: u32,
     lambda: usize,
     population: Vec<Character>,
 }
 
-impl <'a> Island{
-    pub fn new(name: String, lambda: usize, mutation: f32) -> Self {
+impl<'a> Island {
+    pub fn new(name: String, lambda: usize, mutation: u32) -> Self {
         let mut population = Vec::with_capacity(lambda);
         for i in 0..lambda {
             population.push(Character::randomize(format!("{i}")));
-            // population.push(Character::randomize(""));
         }
         info!("Randomize done");
 
@@ -28,21 +27,20 @@ impl <'a> Island{
         }
     }
 
-    pub fn run(&self, nb_run: u32) -> &Character {
+    pub fn run(&mut self, nb_run: u32) {
+        for i in 0..nb_run + 1 {
+            info!("Running generation {i}");
+            let best = Self::do_1_generation(&self.population);
 
-        // Character::randomize("")
-        Self::do_1_generation(&self.population)
-        // for i in 0..nb_run {
-        //     self.do_1_generation()
-        //     return self.do_1_generation()
-        //     // return best_char = self.do_1_generation();
-        // }
+            // Mutate the population based on the best
+            self.population.clear();
+            for i in 0..self.lambda {
+                self.population.push(best.mutate(self.mutation, i));
+            }
+        }
     }
 
-    fn do_1_generation(population: &'a Vec<Character>) -> &'a Character {
-        info!("Calculate fitness for generation ...");
-        // let cloned_pop = population.clone();
-
+    fn do_1_generation(population: &'a Vec<Character>) -> Character {
         match population
             .iter()
             .map(|c| Self::calculate_fitness(population, c))
@@ -54,30 +52,24 @@ impl <'a> Island{
             ) {
             Some((char, best_fitness)) => {
                 println!("Best character is {:?} with fitness {best_fitness}", char);
-                char
+                char.clone()
             }
             None => panic!("Result cannot be empty")
         }
     }
 
     fn calculate_fitness(population: &'a Vec<Character>, char: &'a Character) -> (&'a Character, f32) {
-        // let name = char.name.as_str();
-
-        let now = Instant::now();
         let fitness = population
             .iter()
             .filter(|c| c.name != char.name)
             .map(|c| Self::run_fights(char, c))
             .sum::<f32>() / population.len() as f32;
 
-        let elapsed = now.elapsed();
-        // println!("Elapsed: {:.2?} for {}, fitness: {fitness}", elapsed, char.name);
         (char, fitness)
     }
 
     fn run_fights(c1: &Character, c2: &Character) -> f32 {
-        // info!("Calculate fitness for {} vs {}...", c1.name, c2.name);
-        let nb_fight = 1000u32;
+        let nb_fight = 100u32;
 
         (0..nb_fight)
             .map(|_| Combat::run(c1, c2))
