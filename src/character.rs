@@ -2,7 +2,7 @@ use crate::dies::roll_stress_die;
 use crate::dies::StressDie::{BOTCH, DIE};
 use crate::equipment::{Armor, CUSTOM, GREAT_SWORD, PLATE_FULL_MAIL_CAMAIL_LVL_1, Weapon};
 
-use log::{debug, trace};
+use log::{debug, log, trace};
 use log::error;
 use log::info;
 use log::warn;
@@ -25,13 +25,15 @@ const POSSIBLE_VIRTUES: [Virtue; 14] = [
 
 const POINTS_VIRTUES: u8 = 8u8;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Character {
     pub name: String,
     pub size: i8,
+    pub default_size: i8,
     pub default_soak: i8,
     // Stats
     pub stats: Statistics,
+    pub base_stats: Statistics,
     pub martial_ability: u8,
     pub is_ability_puissant: bool,
     pub is_enduring: bool,
@@ -40,40 +42,26 @@ pub struct Character {
     pub virtues: Vec<&'static Virtue>,
 }
 
+const DEFAULT_MARTIAL_ABILITY: u8 = 6;
+
 impl Character {
-    pub fn new(name: String, race_size: i8, virtues: Vec<&'static Virtue>, mut stats: Statistics,
+    pub fn new(name: String, race_size: i8, virtues: Vec<&'static Virtue>, stats: Statistics,
                mut martial_ability: u8, weapon: &'static Weapon, armor: &'static Armor) -> Self {
-        let (mut size, mut default_soak) = (race_size, 0i8);
+        let default_size = race_size;
+        let base_stats = stats.clone();
 
-        let mut is_ability_puissant = false;
-        let mut is_enduring = false;
+        let (size, default_soak) = (race_size, 0i8);
 
-
-        for virtue in &virtues {
-            match virtue {
-                Tough => { default_soak += 3 }
-                AffinityAbility => { martial_ability += 1 }
-                PuissantAbility => { is_ability_puissant = true }
-                EnduringConstitution => { is_enduring = true }
-                GiantBlood => {
-                    size += 2;
-                    stats += STR;
-                    stats += STA;
-                }
-                Large => { size += 1 }
-                ImprovedCharacteristics => {} // Nothing to do, it has been done to stats before
-                GreatCharacteristics(s) => { add_ref(&mut stats, &s) }
-                None => {}
-            }
-        }
-
-        default_soak += stats.sta;
+        let is_ability_puissant = false;
+        let is_enduring = false;
 
         let mut character = Self {
             name,
             size,
+            default_size,
             default_soak,
             stats,
+            base_stats,
             martial_ability,
             is_ability_puissant,
             is_enduring,
@@ -82,9 +70,41 @@ impl Character {
             virtues,
         };
 
+
+        debug!("Before apply: {:?}", character);
+        character.apply_virtues();
+        debug!("After apply: {:?}", character);
+
         character
     }
 
+    fn apply_virtues(&mut self) {
+        self.size = self.default_size;
+        self.default_soak = 0;
+        self.stats = self.base_stats.clone();
+        self.is_ability_puissant = false;
+        self.is_enduring = false;
+
+        for virtue in &self.virtues {
+            match virtue {
+                Tough => { self.default_soak += 3 }
+                AffinityAbility => { self.martial_ability += 1 }
+                PuissantAbility => { self.is_ability_puissant = true }
+                EnduringConstitution => { self.is_enduring = true }
+                GiantBlood => {
+                    self.size += 2;
+                    self.stats += STR;
+                    self.stats += STA;
+                }
+                Large => { self.size += 1 }
+                ImprovedCharacteristics => {} // Nothing to do, it has been done to stats before
+                GreatCharacteristics(s) => { add_ref(&mut self.stats, &s) }
+                None => {}
+            }
+        }
+
+        self.default_soak += self.stats.sta;
+    }
 
     pub fn randomize(name: String) -> Self {
         // The array + ImprovedCharacteristics
@@ -106,17 +126,65 @@ impl Character {
             0,
             vec![],
             stats,
-            6,
+            DEFAULT_MARTIAL_ABILITY,
             &GREAT_SWORD, &CUSTOM,
         );
 
-        let mut total_virtues = virtues.len() as u8;
+        character.virtues = virtues;
+        character.randomize_virtues(character.virtues.len() as u8);
+        character.apply_virtues();
+
+        character
+    }
+
+    pub fn mutate(&self, mutation: u32, i: usize) -> Character {
+        let mut mutated = (*self).clone();
+        mutated.martial_ability = DEFAULT_MARTIAL_ABILITY;
+        mutated.name = i.to_string();
+        debug!("Previous virtues {:?}, with size", mutated.virtues);
+        // Check if the virtue is mutating
+        mutated.virtues.retain(|&v| !thread_rng().gen_ratio(mutation, 100));
+        debug!("Retained virtues {:?}", mutated.virtues);
+
+        let mut total_virtues = mutated.count_virtues();
+
+        let remaining_virtues = POINTS_VIRTUES - total_virtues;
+        // The array + ImprovedCharacteristics
+        let nb_virtues = POSSIBLE_VIRTUES.len() + 1;
+
+        // This virtue must be done before great characs and stats mutation
+        for _ in 0..remaining_virtues {
+            if thread_rng().gen_range(0..nb_virtues) == 0 {
+                mutated.virtues.push(&ImprovedCharacteristics);
+                total_virtues += 1;
+            }
+        }
+        debug!("Retained virtues with ImprovedCharacteristics {:?}", mutated.virtues);
+
+        debug!("Base Stats before {:?}", mutated.base_stats);
+        mutated.base_stats.mutate(mutation, POINTS_VIRTUES);
+        debug!("Base Stats after {:?}", mutated.base_stats);
+        mutated.stats = mutated.base_stats.clone();
+
+        mutated.randomize_virtues(total_virtues);
+        debug!("New virtues {:?}", mutated.virtues);
+
+        mutated.apply_virtues();
+
+        mutated
+    }
+
+    fn randomize_virtues(&mut self, mut total_virtues: u8) {
         let mut i = 0u8;
         loop {
+            if i > 5 || total_virtues == POINTS_VIRTUES {
+                break;
+            }
+
             let pick = &POSSIBLE_VIRTUES[thread_rng().gen_range(0..POSSIBLE_VIRTUES.len())];
             debug!("Picking {:?}", pick);
 
-            if character.is_valid(pick, &virtues, &total_virtues) {
+            if self.is_valid(pick, &self.virtues, &total_virtues) {
                 i = 0;
                 debug!("Valid");
                 match pick {
@@ -124,34 +192,35 @@ impl Character {
                     _ => total_virtues += 1,
                 }
                 // character.apply_virtue(pick);
-                virtues.push(pick);
+                self.virtues.push(pick);
             } else {
                 i += 1;
                 debug!("Not valid");
             }
 
-            debug!("total_virtues {total_virtues}, {:?}", virtues);
-
-            if i > 5 || total_virtues == POINTS_VIRTUES {
-                break;
-            }
+            debug!("total_virtues {total_virtues}, {:?}", self.virtues);
         }
-
-        character.virtues = virtues;
-
-        character
     }
 
-    pub fn mutate(&mut self, mutation: u32) {
-        self.stats.mutate(mutation, POINTS_VIRTUES);
+    fn count_virtues(&self) -> u8 {
+        let count = self.virtues
+            .iter()
+            .map(|&v| match v {
+                GiantBlood => 3,
+                _ => 1
+            })
+            .reduce(|acc, v| acc + v);
 
-        todo!(Faire en sorte de muter le personnage tout en conservant les valeurs des stats AVANT les vertues)
+        match count {
+            Some(i) => i,
+            _ => 0
+        }
     }
 
     fn is_valid(&self, virtue: &Virtue, virtues: &[&Virtue], total_virtues: &u8) -> bool {
         match virtue {
             Large => !virtues.iter().any(|v| **v == GiantBlood || **v == Large),
-            GiantBlood => *total_virtues <= 7 && !virtues.iter().any(|v| **v == GiantBlood || **v == Large),
+            GiantBlood => *total_virtues <= POINTS_VIRTUES - 3 && !virtues.iter().any(|v| **v == GiantBlood || **v == Large),
             Tough => !virtues.contains(&&Tough),
             ImprovedCharacteristics => true,
             GreatCharacteristics(s) => {
@@ -255,6 +324,19 @@ mod tests {
 
         let char = Character::randomize("toto".to_string());
         info!("{:?}", char);
+    }
+
+    #[test]
+    fn test_mutate() {
+        init();
+
+        let mut char = Character::randomize("toto".to_string());
+        info!("Init: {:?}", char);
+        info!("\n\nMutation ... \n\n");
+
+        char.mutate(35, 0);
+
+        info!("Mutated: {:?}", char);
     }
 
     // #[test]

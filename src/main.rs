@@ -25,13 +25,13 @@ fn main() {
     let now = Instant::now();
 
     let nb_island = 1;
-    let nb_run = 100u32;
-    let lambda = 10;
-    let mutation = 0.1f32;
+    let nb_run = 1000u32;
+    let lambda = 50;
+    let mutation = 25;
 
     for i in 0..nb_island {
         println!("Creating island n°{i}");
-        let island = Island::new(format!("{i}"), lambda, mutation);
+        let mut island = Island::new(format!("{i}"), lambda, mutation);
 
         println!("Running island n°{i}");
         island.run(nb_run);
