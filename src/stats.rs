@@ -117,7 +117,6 @@ impl Statistics {
 
     fn get_valid_increase(stat: &i8, remaining_points: i8, denominator: u32) -> i8 {
         let mut rng = thread_rng();
-        let result = Self::get_cost(stat + 1);
         match Self::get_cost(stat + 1) {
             Ok(n) if n <= remaining_points => match Self::get_cost(stat + 2) {
                 Ok(n) if rng.gen_ratio(1, denominator) && n <= remaining_points => match Self::get_cost(stat + 3) {
@@ -127,16 +126,6 @@ impl Statistics {
                 _ => 1,
             },
             _ => 0,
-        }
-    }
-
-    fn mutate_stat(stat: &mut i8, mutation: u32, points: u8) {
-        *stat = match thread_rng().gen_ratio(mutation, 100) {
-            true => match thread_rng().gen_bool(0.5) {
-                true => *stat - 1,
-                false => *stat + 1,
-            },
-            false => *stat
         }
     }
 
